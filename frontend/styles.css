@@ -707,3 +707,28 @@ h2 {
 .dark-theme #debug-content::-webkit-scrollbar-thumb:hover {
     background: #718096;
 }
+
+/* Stream Info */
+.stream-info {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 5px;
+    border-left: 3px solid var(--primary-color);
+}
+
+.stream-info h3 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    color: var(--text-color);
+}
+
+.stream-info p {
+    margin: 5px 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.dark-theme .stream-info {
+    background-color: rgba(255, 255, 255, 0.05);
+}

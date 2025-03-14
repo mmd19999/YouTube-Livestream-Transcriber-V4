@@ -1,17 +1,76 @@
 # YouTube Livestream Transcriber
 
-A clean, modern web UI for transcribing YouTube livestreams with topic change detection.
+A simple application that connects to YouTube livestreams, extracts audio, and provides real-time transcription using OpenAI's Whisper API.
 
 ## Features
 
-- Real-time transcription of YouTube livestreams
-- Topic change detection and summary
-- Live transcription display with copy, save, and clear functionality
-- Status indicators for connection and stream status
-- Settings panel for future customization options
-- Debug console for monitoring system activities
-- Responsive design for various screen sizes
-- Light/dark theme toggle (UI only, functionality to be implemented)
+- Connect to any YouTube livestream using its URL
+- Extract audio in 15-second chunks
+- Transcribe audio using OpenAI's Whisper API
+- Display transcriptions in real-time with timestamps
+- Debug console for monitoring the transcription process
+
+## Requirements
+
+- Python 3.8+
+- FFmpeg installed and accessible in your PATH
+- Conda environment named "transcription"
+- OpenAI API key
+
+## Setup
+
+1. Clone this repository:
+   ```
+   git clone <repository-url>
+   cd youtube-livestream-transcriber
+   ```
+
+2. Set up the Conda environment:
+   ```
+   conda create -n transcription python=3.8
+   conda activate transcription
+   ```
+
+3. Install backend dependencies:
+   ```
+   cd backend
+   pip install -r requirements.txt
+   ```
+
+4. Set up your OpenAI API key:
+   - Create a `.env` file in the `backend` directory
+   - Add your OpenAI API key: `OPENAI_API_KEY=your-api-key-here`
+
+5. Make sure FFmpeg is installed:
+   - Windows: Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH
+   - macOS: `brew install ffmpeg`
+   - Linux: `sudo apt install ffmpeg` or equivalent for your distribution
+
+## Running the Application
+
+1. Start the backend server:
+   ```
+   cd backend
+   conda activate transcription
+   python app.py
+   ```
+
+2. Open the frontend:
+   - Navigate to `http://localhost:5001` in your web browser
+
+## Usage
+
+1. Enter a YouTube livestream URL in the input field
+2. Click "Connect" to begin the transcription process
+3. View real-time transcriptions in the transcription window
+4. Toggle the debug console to view detailed logs
+5. Click "Stop Transcription" to end the process
+
+## Troubleshooting
+
+- If you encounter issues with FFmpeg, ensure it's properly installed and accessible in your PATH
+- Check the debug console for detailed error messages
+- Verify that your OpenAI API key is valid and has sufficient credits
 
 ## Project Structure
 
@@ -23,61 +82,17 @@ A clean, modern web UI for transcribing YouTube livestreams with topic change de
 │   └── script.js       # Frontend JavaScript
 └── backend/
     ├── app.py          # Flask server with Socket.IO
+    ├── transcription.py # Transcription functionality
+    ├── .env            # Environment variables (API keys)
     └── requirements.txt # Python dependencies
 ```
 
-## Setup Instructions
-
-### Backend Setup
-
-1. Make sure you have Python 3.7+ installed
-2. Navigate to the backend directory:
-   ```
-   cd backend
-   ```
-3. Create and activate a conda environment:
-   ```
-   conda create -n transcribtion python=3.9 -y
-   conda activate transcribtion
-   ```
-4. Install the required packages:
-   ```
-   pip install -r requirements.txt
-   ```
-5. Start the Flask server:
-   ```
-   python app.py
-   ```
-   The server will run on http://localhost:5000
-
-### Frontend Access
-
-Once the backend server is running, you can access the application by:
-
-1. Opening a web browser
-2. Navigating to http://localhost:5000
-
-## Usage
-
-1. Enter a YouTube livestream URL in the input field
-2. Click the "Start Transcription" button to begin
-3. View real-time transcription in the Live Transcription panel
-4. Monitor topic changes in the Topic Summary panel
-5. Use the Copy, Save, or Clear buttons to manage the transcription
-6. Click "Stop Transcription" to end the process
-
-## Features to Implement
-
-This is a demonstration application with mock data. In a production environment, you would need to implement:
-
-1. Actual YouTube livestream connection using the youtube-dl library
-2. Audio extraction from the livestream
-3. Real-time transcription using a speech-to-text service
-4. Topic change detection using NLP techniques
-5. User authentication and saved transcriptions
-6. Dark/light theme toggle functionality
-7. Settings panel with transcription options
-
 ## License
 
-MIT 
+MIT
+
+## Acknowledgements
+
+- [OpenAI Whisper](https://openai.com/research/whisper) for audio transcription
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) for YouTube stream extraction
+- [Flask](https://flask.palletsprojects.com/) and [Socket.IO](https://socket.io/) for the web server and real-time communication 

@@ -1,48 +1,42 @@
+# Import gevent and monkey patch FIRST - before any other imports
+from gevent import monkey
+
+monkey.patch_all()
+
+# Now it's safe to import everything else
 from flask import Flask, render_template, send_from_directory
 from flask_socketio import SocketIO, emit
 import os
 import json
 import time
-import random  # For demo purposes only
 import threading
+import logging
+from dotenv import load_dotenv
+import transcription
+
+# Load environment variables
+load_dotenv()
 
 # Initialize Flask app
 app = Flask(__name__, static_folder="../frontend")
 app.config["SECRET_KEY"] = "your-secret-key"
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode="gevent",
+    logger=True,
+    engineio_logger=True,
+)
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Global variables
 connected_clients = 0
 active_transcription = False
 transcription_thread = None
 stop_transcription_flag = False
-
-# Mock data for demonstration purposes
-MOCK_LIVESTREAM_INFO = {
-    "title": "Live Tech Talk: AI and Machine Learning",
-    "channel": "Tech Enthusiasts",
-    "viewers": "1,234",
-}
-
-MOCK_TRANSCRIPTIONS = [
-    "Hello everyone, welcome to today's livestream about AI and machine learning.",
-    "Today we're going to discuss the latest advancements in natural language processing.",
-    "Let's start by talking about transformer models and their impact on the field.",
-    "Transformer models have revolutionized how we approach language tasks.",
-    "The attention mechanism allows these models to focus on relevant parts of the input.",
-    "This has led to significant improvements in translation, summarization, and other tasks.",
-    "Now, let's shift our focus to computer vision applications of deep learning.",
-    "Convolutional neural networks remain the backbone of many vision systems.",
-    "However, transformers are also making inroads in this domain.",
-    "Vision transformers treat images as sequences of patches and apply self-attention.",
-]
-
-MOCK_TOPIC_CHANGES = [
-    {"timestamp": "00:01:30", "topic": "Introduction to AI"},
-    {"timestamp": "00:03:45", "topic": "Natural Language Processing"},
-    {"timestamp": "00:06:20", "topic": "Transformer Models"},
-    {"timestamp": "00:08:10", "topic": "Computer Vision Applications"},
-]
 
 
 # Routes
@@ -61,15 +55,16 @@ def serve_static(path):
 def handle_connect():
     global connected_clients
     connected_clients += 1
-    print(f"Client connected. Total clients: {connected_clients}")
+    logger.info(f"Client connected. Total clients: {connected_clients}")
     socketio.emit("clients_update", {"count": connected_clients})
+    logger.info(f"Emitted clients_update event with count: {connected_clients}")
 
 
 @socketio.on("disconnect")
 def handle_disconnect():
     global connected_clients
     connected_clients = max(0, connected_clients - 1)
-    print(f"Client disconnected. Total clients: {connected_clients}")
+    logger.info(f"Client disconnected. Total clients: {connected_clients}")
     socketio.emit("clients_update", {"count": connected_clients})
 
 
@@ -78,11 +73,16 @@ def handle_connect_livestream(data):
     global active_transcription, transcription_thread, stop_transcription_flag
 
     url = data.get("url", "")
-    print(f"Connecting to livestream: {url}")
+    log_message = f"Received URL: {url}"
+    logger.info(log_message)
+    socketio.emit("debug_log", {"message": log_message})
 
-    # Validate URL (simple check for demo)
+    # Validate URL (simple check)
     if "youtube.com" not in url and "youtu.be" not in url:
-        emit("livestream_error", {"message": "Invalid YouTube URL"})
+        error_message = "Invalid YouTube URL"
+        logger.error(error_message)
+        socketio.emit("debug_log", {"message": error_message, "type": "error"})
+        socketio.emit("livestream_error", {"message": error_message})
         return
 
     # If already transcribing, stop the current one
@@ -95,69 +95,127 @@ def handle_connect_livestream(data):
         transcription_thread.join(timeout=1.0)
         stop_transcription_flag = False
 
-    # Simulate connection delay
-    time.sleep(1)
-
-    # Send livestream info
-    emit("livestream_connected", MOCK_LIVESTREAM_INFO)
-
-    # Start sending mock transcriptions and topic changes
+    # Start transcription process
     active_transcription = True
     stop_transcription_flag = False
-    transcription_thread = socketio.start_background_task(target=send_mock_data)
+    transcription_thread = socketio.start_background_task(
+        target=transcribe_livestream, url=url
+    )
+
+    # Send status update
+    socketio.emit("livestream_connected", {"status": "connected", "url": url})
+    logger.info(f"Emitted livestream_connected event for URL: {url}")
 
 
 @socketio.on("stop_transcription")
 def handle_stop_transcription():
     global active_transcription, stop_transcription_flag
 
-    print("Stopping transcription")
+    log_message = "Stopping transcription"
+    logger.info(log_message)
+    socketio.emit("debug_log", {"message": log_message})
+
     stop_transcription_flag = True
     active_transcription = False
 
 
-def send_mock_data():
-    """Send mock transcription and topic change data for demonstration"""
-    global stop_transcription_flag
-    current_time = 0
-    topic_index = 0
+@socketio.on("ping")
+def handle_ping(data):
+    logger.info(f"Received ping: {data}")
+    socketio.emit("pong", {"message": "Server received ping"})
+    logger.info("Emitted pong response")
 
-    for i, text in enumerate(MOCK_TRANSCRIPTIONS):
-        # Check if transcription should be stopped
-        if stop_transcription_flag:
-            print("Transcription stopped")
-            break
 
-        # Convert seconds to timestamp format
-        minutes = current_time // 60
-        seconds = current_time % 60
-        timestamp = f"{minutes:02d}:{seconds:02d}"
+def transcribe_livestream(url):
+    """Main function to transcribe a YouTube livestream"""
+    global stop_transcription_flag, active_transcription
 
-        # Send transcription
-        socketio.emit("transcription", {"timestamp": timestamp, "text": text})
+    try:
+        # Get the direct audio stream URL
+        log_message = f"Extracting audio stream URL from: {url}"
+        socketio.emit("debug_log", {"message": log_message})
 
-        # Check if there's a topic change at this point
-        if topic_index < len(MOCK_TOPIC_CHANGES):
-            topic_time_parts = MOCK_TOPIC_CHANGES[topic_index]["timestamp"].split(":")
-            topic_seconds = int(topic_time_parts[0]) * 60 + int(topic_time_parts[1])
+        audio_url, stream_info = transcription.get_audio_stream_url(url)
 
-            if current_time >= topic_seconds:
-                socketio.emit("topic_change", MOCK_TOPIC_CHANGES[topic_index])
-                topic_index += 1
-
-        # Increment time and wait
-        current_time += random.randint(10, 30)  # Random time between messages
-        time.sleep(2)  # Slow down for demo purposes
-
-    # If we've gone through all transcriptions and not stopped, mark as inactive
-    if not stop_transcription_flag:
+        # Send livestream info to frontend
+        socketio.emit("livestream_info", stream_info)
         socketio.emit(
-            "transcription",
-            {
-                "timestamp": f"{current_time // 60:02d}:{current_time % 60:02d}",
-                "text": "End of transcription.",
-            },
+            "debug_log",
+            {"message": "Successfully extracted audio stream URL", "type": "success"},
         )
+
+        if not audio_url:
+            error_message = "Failed to get audio stream URL"
+            logger.error(error_message)
+            socketio.emit("debug_log", {"message": error_message, "type": "error"})
+            socketio.emit("livestream_error", {"message": error_message})
+            return
+
+        # Start transcribing chunks sequentially
+        current_time = 0
+        chunk_duration = 15  # seconds
+
+        while not stop_transcription_flag:
+            try:
+                # Extract audio chunk
+                log_message = f"Extracting audio chunk at {transcription.format_timestamp(current_time)}"
+                socketio.emit("debug_log", {"message": log_message})
+
+                audio_file = transcription.extract_audio_chunk(
+                    audio_url, chunk_duration, current_time
+                )
+
+                # Transcribe the audio chunk
+                log_message = "Transcribing chunk..."
+                socketio.emit("debug_log", {"message": log_message})
+
+                transcription_text = transcription.transcribe_audio_chunk(audio_file)
+
+                # Format timestamp
+                timestamp = transcription.format_timestamp(current_time)
+
+                # Send transcription to frontend
+                log_message = f"Transcription sent to frontend: {transcription_text}"
+                logger.info(log_message)
+                socketio.emit("debug_log", {"message": log_message, "type": "success"})
+
+                # Emit transcription event to all clients
+                socketio.emit(
+                    "transcription",
+                    {"timestamp": timestamp, "text": transcription_text},
+                    broadcast=True,
+                )
+                logger.info(f"Emitted transcription event with timestamp: {timestamp}")
+
+                # Move to next chunk
+                current_time += chunk_duration
+
+            except Exception as e:
+                error_message = f"Error processing chunk: {str(e)}"
+                logger.error(error_message)
+                socketio.emit("debug_log", {"message": error_message, "type": "error"})
+                # Continue to next chunk even if this one fails
+                current_time += chunk_duration
+                continue
+
+    except Exception as e:
+        error_message = f"Transcription error: {str(e)}"
+        logger.error(error_message)
+        socketio.emit("debug_log", {"message": error_message, "type": "error"})
+        socketio.emit("livestream_error", {"message": error_message})
+    finally:
+        # Clean up and mark as inactive
+        if not stop_transcription_flag:
+            socketio.emit(
+                "transcription",
+                {
+                    "timestamp": transcription.format_timestamp(current_time),
+                    "text": "Transcription ended due to an error.",
+                },
+                broadcast=True,
+            )
+
+        active_transcription = False
 
 
 if __name__ == "__main__":

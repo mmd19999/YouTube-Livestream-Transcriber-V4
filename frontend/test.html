@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.IO Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+
+        #log {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+        }
+
+        .success {
+            color: green;
+        }
+
+        .error {
+            color: red;
+        }
+
+        .info {
+            color: blue;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Socket.IO Connection Test</h1>
+    <div id="log"></div>
+    <button id="connect">Connect to Socket.IO</button>
+    <button id="ping">Send Ping</button>
+    <button id="disconnect">Disconnect</button>
+
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script>
+        const logElement = document.getElementById('log');
+        const connectButton = document.getElementById('connect');
+        const pingButton = document.getElementById('ping');
+        const disconnectButton = document.getElementById('disconnect');
+
+        let socket = null;
+
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logElement.appendChild(entry);
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        connectButton.addEventListener('click', () => {
+            try {
+                log('Attempting to connect to Socket.IO server at http://localhost:5000');
+
+                socket = io('http://localhost:5000', {
+                    transports: ['websocket', 'polling'],
+                    reconnectionAttempts: 5,
+                    reconnectionDelay: 1000,
+                    forceNew: true,
+                    timeout: 10000
+                });
+
+                socket.on('connect', () => {
+                    log('Connected to server!', 'success');
+                    log(`Socket ID: ${socket.id}`, 'info');
+                });
+
+                socket.on('disconnect', () => {
+                    log('Disconnected from server', 'error');
+                });
+
+                socket.on('connect_error', (error) => {
+                    log(`Connection error: ${error.message}`, 'error');
+                });
+
+                socket.on('pong', (data) => {
+                    log(`Received pong: ${JSON.stringify(data)}`, 'success');
+                });
+
+                // Listen for any event
+                socket.onAny((event, ...args) => {
+                    log(`Received event: ${event} - ${JSON.stringify(args)}`, 'info');
+                });
+
+            } catch (error) {
+                log(`Error initializing Socket.IO: ${error.message}`, 'error');
+            }
+        });
+
+        pingButton.addEventListener('click', () => {
+            if (!socket) {
+                log('Socket not connected. Click Connect first.', 'error');
+                return;
+            }
+
+            log('Sending ping to server');
+            socket.emit('ping', { message: 'Testing connection' });
+        });
+
+        disconnectButton.addEventListener('click', () => {
+            if (!socket) {
+                log('Socket not connected', 'error');
+                return;
+            }
+
+            log('Disconnecting from server');
+            socket.disconnect();
+            socket = null;
+        });
+
+        log('Socket.IO Test Page Loaded', 'info');
+    </script>
+</body>
+
+</html>

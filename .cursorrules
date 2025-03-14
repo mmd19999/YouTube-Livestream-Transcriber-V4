@@ -14,7 +14,7 @@
 - Avoid premature optimization—focus on core functionalities first.
 - When fixing bugs, leave ego aside and consider multiple possible causes.
 - Assume your knowledge might be outdated; ask the user to web search for strange errors or API updates.
-- Use the "transcribtion" conda environment for installing packages.
+- Use the "youtube_v4" conda environment for installing packages.
 - Leverage code running or terminal execution to diagnose errors.
 - Simplify code cautiously, preserving parts that might prevent errors.
 - Add detailed logging to track issues and progress.
