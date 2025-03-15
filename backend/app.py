@@ -32,7 +32,7 @@ socketio = SocketIO(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Global variables
+# Global variabless
 connected_clients = 0
 active_transcription = False
 transcription_thread = None
