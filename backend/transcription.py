@@ -74,7 +74,7 @@ def extract_audio_chunk(audio_url, chunk_duration=15, start_time=0):
         timestamp = format_timestamp(start_time)
         logger.info(f"Extracting audio chunk at {timestamp}")
 
-        # Use ffmpeg to extract the audio chunkk
+        # Use ffmpeg to extract the audio chunk
         ffmpeg_cmd = [
             "ffmpeg",
             "-y",  # Overwrite output file if it exists
