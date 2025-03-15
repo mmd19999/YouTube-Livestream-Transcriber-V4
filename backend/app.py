@@ -13,6 +13,7 @@ import threading
 import logging
 from dotenv import load_dotenv
 import transcription
+import datetime  # Added for timestamp handling
 
 # Load environment variables
 load_dotenv()
@@ -151,9 +152,19 @@ def transcribe_livestream(url):
             socketio.emit("livestream_error", {"message": error_message})
             return
 
+        # Initialize timestamp reference point - the moment transcription begins
+        transcription_start_time = datetime.datetime.now()
+        logger.info(f"Transcription started at: {transcription_start_time}")
+        socketio.emit(
+            "debug_log",
+            {
+                "message": f"Transcription started at: {transcription_start_time.strftime('%H:%M:%S')}"
+            },
+        )
+
         # Start transcribing chunks sequentially
-        current_time = 0
-        chunk_duration = 15  # seconds
+        current_time = 0  # Still needed for ffmpeg extraction
+        chunk_duration = 20  # seconds
 
         while not stop_transcription_flag:
             try:
@@ -171,8 +182,12 @@ def transcribe_livestream(url):
 
                 transcription_text = transcription.transcribe_audio_chunk(audio_file)
 
-                # Format timestamp
-                timestamp = transcription.format_timestamp(current_time)
+                # Calculate timestamp based on real-world time
+                current_real_time = datetime.datetime.now()
+                elapsed_seconds = (
+                    current_real_time - transcription_start_time
+                ).total_seconds()
+                timestamp = transcription.format_timestamp(int(elapsed_seconds))
 
                 # Send transcription to frontend
                 log_message = f"Transcription sent to frontend: {transcription_text}"
@@ -187,7 +202,7 @@ def transcribe_livestream(url):
                 )
                 logger.info(f"Emitted transcription event with timestamp: {timestamp}")
 
-                # Move to next chunk
+                # Move to next chunk (still needed for ffmpeg extraction)
                 current_time += chunk_duration
 
             except Exception as e:
@@ -206,10 +221,17 @@ def transcribe_livestream(url):
     finally:
         # Clean up and mark as inactive
         if not stop_transcription_flag:
+            # Get final timestamp based on real world time
+            current_real_time = datetime.datetime.now()
+            elapsed_seconds = (
+                current_real_time - transcription_start_time
+            ).total_seconds()
+            final_timestamp = transcription.format_timestamp(int(elapsed_seconds))
+
             socketio.emit(
                 "transcription",
                 {
-                    "timestamp": transcription.format_timestamp(current_time),
+                    "timestamp": final_timestamp,
                     "text": "Transcription ended due to an error.",
                 },
                 broadcast=True,
