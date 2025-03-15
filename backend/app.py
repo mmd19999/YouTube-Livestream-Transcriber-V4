@@ -13,6 +13,7 @@ import threading
 import logging
 from dotenv import load_dotenv
 import transcription
+import topic_detection  # Add import for topic detection module
 import datetime  # Added for timestamp handling
 
 # Load environment variables
@@ -95,6 +96,11 @@ def handle_connect_livestream(data):
         stop_transcription_flag = True
         transcription_thread.join(timeout=1.0)
         stop_transcription_flag = False
+        topic_detection.stop_topic_detection()  # Stop the topic detection thread
+
+    # Start topic detection thread
+    topic_detection.start_topic_detection(socketio)
+    socketio.emit("debug_log", {"message": "Topic detection thread started"})
 
     # Start transcription process
     active_transcription = True
@@ -118,6 +124,7 @@ def handle_stop_transcription():
 
     stop_transcription_flag = True
     active_transcription = False
+    topic_detection.stop_topic_detection()  # Stop the topic detection thread
 
 
 @socketio.on("ping")
@@ -202,6 +209,11 @@ def transcribe_livestream(url):
                 )
                 logger.info(f"Emitted transcription event with timestamp: {timestamp}")
 
+                # Send transcription for topic change detection
+                topic_detection.add_transcription_for_analysis(
+                    timestamp, transcription_text
+                )
+
                 # Move to next chunk (still needed for ffmpeg extraction)
                 current_time += chunk_duration
 
@@ -238,6 +250,7 @@ def transcribe_livestream(url):
             )
 
         active_transcription = False
+        topic_detection.stop_topic_detection()  # Stop the topic detection thread
 
 
 if __name__ == "__main__":

@@ -264,82 +264,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Socket event listeners
         socket.on('connect', () => {
-            updateConnectionStatus(true);
             logToConsole('Connected to server', 'success');
-            logToConsole(`Socket ID: ${socket.id}`, 'info');
-
-            // Send a test ping to verify connection
-            socket.emit('ping', { message: 'Testing connection' });
-            console.log('Sent ping to server');
+            updateConnectionStatus(true);
         });
 
         socket.on('disconnect', () => {
+            logToConsole('Disconnected from server', 'error');
             updateConnectionStatus(false);
             updateStreamStatus(false);
-            logToConsole('Disconnected from server', 'error');
         });
 
-        socket.on('connect_error', (error) => {
+        socket.on('connect_error', (err) => {
+            logToConsole(`Connection error: ${err.message}`, 'error');
             updateConnectionStatus(false);
-            console.error('Socket.io connection error:', error);
-            logToConsole(`Socket connection error: ${error.message}`, 'error');
         });
 
         socket.on('clients_update', (data) => {
             clientsCount.textContent = data.count;
-            logToConsole(`Clients connected: ${data.count}`, 'info');
+            logToConsole(`Connected clients: ${data.count}`);
         });
 
         socket.on('livestream_connected', (data) => {
-            logToConsole(`Connected to livestream: ${data.url || data.status}`, 'success');
-            updateStreamStatus(true);
+            logToConsole(`Connected to livestream: ${data.url}`, 'success');
         });
 
         socket.on('livestream_error', (data) => {
-            logToConsole(`Error: ${data.message}`, 'error');
+            logToConsole(`Livestream error: ${data.message}`, 'error');
             updateStreamStatus(false);
         });
 
+        socket.on('livestream_info', (data) => {
+            logToConsole(`Stream info received: ${data.title} by ${data.channel}`, 'info');
+            updateStreamStatus(true);
+        });
+
         socket.on('transcription', (data) => {
-            console.log('Received transcription event:', data);
             addTranscription(data.timestamp, data.text);
         });
 
+        // Add handler for topic change events
         socket.on('topic_change', (data) => {
+            logToConsole(`Topic change detected: ${data.topic} at ${data.timestamp}`, 'success');
             addTopicChange(data.timestamp, data.topic);
         });
 
-        // Add new event listeners for debug logs and livestream info
         socket.on('debug_log', (data) => {
             logToConsole(data.message, data.type || 'info');
-        });
-
-        socket.on('livestream_info', (data) => {
-            logToConsole(`Stream Info - Title: ${data.title}, Channel: ${data.channel}, Viewers: ${data.viewers}`, 'info');
-
-            // Update UI with stream info if needed
-            const streamInfoElement = document.createElement('div');
-            streamInfoElement.className = 'stream-info';
-            streamInfoElement.innerHTML = `
-                <h3>${data.title}</h3>
-                <p>Channel: ${data.channel}</p>
-                <p>Viewers: ${data.viewers}</p>
-            `;
-
-            // Check if stream info already exists and replace it
-            const existingInfo = document.querySelector('.stream-info');
-            if (existingInfo) {
-                existingInfo.replaceWith(streamInfoElement);
-            } else {
-                // Add it before the transcription window
-                const streamControls = document.getElementById('stream-controls');
-                streamControls.appendChild(streamInfoElement);
-            }
-        });
-
-        socket.on('pong', (data) => {
-            console.log('Received pong from server:', data);
-            logToConsole(`Server connection verified: ${data.message}`, 'success');
         });
 
         // Log initial message
