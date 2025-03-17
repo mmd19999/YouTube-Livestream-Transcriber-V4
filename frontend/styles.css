@@ -392,19 +392,64 @@ input[type="text"] {
 /* Topic Summary */
 #topic-summary {
     height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
 #topic-summary h2 {
     padding: 15px 20px;
     border-bottom: 1px solid var(--border-color);
+    margin-bottom: 0;
 }
 
 .topic-content {
     padding: 15px 20px;
-    height: calc(100% - 50px);
+    flex: 1;
     overflow-y: auto;
     background-color: var(--transcription-bg);
     border-radius: 0 0 8px 8px;
+    display: none;
+}
+
+.topic-content.active {
+    display: block;
+}
+
+.topic-tabs {
+    display: flex;
+    background-color: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 15px;
+}
+
+.topic-tab {
+    background: none;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-light);
+    position: relative;
+    transition: color 0.2s;
+}
+
+.topic-tab:hover {
+    color: var(--primary-color);
+}
+
+.topic-tab.active {
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+.topic-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: var(--primary-color);
 }
 
 .no-topics {
@@ -417,6 +462,52 @@ input[type="text"] {
 .sub-text {
     font-size: 0.9rem;
     margin-top: 5px;
+}
+
+.topic-change {
+    background-color: rgba(52, 152, 219, 0.1);
+    padding: 12px 15px;
+    border-left: 3px solid var(--primary-color);
+    margin: 12px 0;
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.topic-change:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.1);
+}
+
+.topic-change strong {
+    color: var(--primary-color);
+}
+
+.major-topic-change {
+    background-color: rgba(46, 204, 113, 0.1);
+    padding: 12px 15px;
+    border-left: 3px solid #2ecc71;
+    margin: 12px 0;
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.major-topic-change:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.1);
+}
+
+.major-topic-change strong {
+    color: #2ecc71;
+}
+
+.interval {
+    font-family: monospace;
+    color: var(--text-light);
+    font-weight: bold;
+    display: inline-block;
+    margin-right: 5px;
 }
 
 /* Footer */

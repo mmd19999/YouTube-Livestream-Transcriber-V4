@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const clientsCount = document.getElementById('clients-count');
     const transcriptionWindow = document.getElementById('transcription-window');
     const topicWindow = document.getElementById('topic-window');
+    const majorTopicWindow = document.getElementById('major-topic-window');
+    const topicTabs = document.querySelectorAll('.topic-tab');
     const debugConsole = document.getElementById('debug-console');
     const debugContent = document.getElementById('debug-content');
     const clearDebugBtn = document.getElementById('clear-debug-btn');
@@ -39,6 +41,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize debug console
     initDebugConsole();
+
+    // Initialize topic tabs
+    function initTopicTabs() {
+        topicTabs.forEach(tab => {
+            tab.addEventListener('click', function () {
+                // Remove active class from all tabs
+                topicTabs.forEach(t => t.classList.remove('active'));
+
+                // Add active class to clicked tab
+                this.classList.add('active');
+
+                // Hide all content
+                document.querySelectorAll('.topic-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+
+                // Show content for selected tab
+                const targetId = this.getAttribute('data-target');
+                const targetContent = document.querySelector(`.topic-content[data-id="${targetId}"]`);
+                if (targetContent) {
+                    targetContent.classList.add('active');
+                }
+            });
+        });
+    }
+
+    // Initialize topic tabs
+    initTopicTabs();
 
     // Log function for debug console
     function logToConsole(message, type = 'info') {
@@ -161,6 +191,28 @@ document.addEventListener('DOMContentLoaded', () => {
             entry.innerHTML = `<span class="timestamp">${timestamp}</span> <strong>New Topic:</strong> ${formattedTopic}`;
             topicWindow.appendChild(entry);
             topicWindow.scrollTop = topicWindow.scrollHeight;
+        }
+
+        // Add major topic change entry
+        function addMajorTopicChange(interval, topic) {
+            // Clear no topics message if present
+            const noTopics = majorTopicWindow.querySelector('.no-topics');
+            if (noTopics) {
+                majorTopicWindow.innerHTML = '';
+            }
+
+            const entry = document.createElement('div');
+            entry.className = 'major-topic-change';
+
+            // Format the topic with better capitalization
+            const formattedTopic = topic.charAt(0).toUpperCase() + topic.slice(1);
+
+            entry.innerHTML = `<span class="interval">${interval}</span> <strong>Major Topic:</strong> ${formattedTopic}`;
+            majorTopicWindow.appendChild(entry);
+            majorTopicWindow.scrollTop = majorTopicWindow.scrollHeight;
+
+            // Also log to debug console
+            logToConsole(`Major topic detected: ${topic} for interval ${interval}`, 'success');
         }
 
         // Start transcription
@@ -306,6 +358,12 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.on('topic_change', (data) => {
             logToConsole(`Topic change detected: ${data.topic} at ${data.timestamp}`, 'success');
             addTopicChange(data.timestamp, data.topic);
+        });
+
+        // Add handler for major topic change events
+        socket.on('major_topic_change', (data) => {
+            logToConsole(`Major topic detected: ${data.topic} for interval ${data.interval}`, 'success');
+            addMajorTopicChange(data.interval, data.topic);
         });
 
         socket.on('debug_log', (data) => {
