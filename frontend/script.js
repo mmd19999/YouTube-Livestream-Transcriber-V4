@@ -15,6 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearDebugBtn = document.getElementById('clear-debug-btn');
     const toggleSettingsBtn = document.getElementById('toggle-settings');
     const settingsContent = document.getElementById('settings-content');
+    const openaiApiKeyInput = document.getElementById('openai-api-key');
+    const saveApiKeyBtn = document.getElementById('save-api-key');
     const copyBtn = document.getElementById('copy-btn');
     const saveBtn = document.getElementById('save-btn');
     const clearBtn = document.getElementById('clear-btn');
@@ -26,6 +28,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let isTranscribing = false;
     let transcriptionText = '';
     let isDebugVisible = true; // Start with debug visible
+    let apiKey = localStorage.getItem('openai-api-key') || '';
+
+    // Initialize API key input
+    if (apiKey) {
+        openaiApiKeyInput.value = apiKey;
+        logToConsole('API key loaded from local storage', 'info');
+    }
 
     // Initialize debug console
     function initDebugConsole() {
@@ -226,8 +235,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             logToConsole(`Connecting to livestream: ${url}`);
 
-            // Send connection request to server
-            socket.emit('connect_livestream', { url });
+            // Send connection request to server with API key if available
+            const userApiKey = apiKey ? apiKey : '';
+            socket.emit('connect_livestream', { url, apiKey: userApiKey });
         }
 
         // Stop transcription
@@ -301,6 +311,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // Save API key
+        function saveApiKey() {
+            const newApiKey = openaiApiKeyInput.value.trim();
+
+            if (!newApiKey) {
+                logToConsole('Please enter an API key', 'error');
+                return;
+            }
+
+            // Save to localStorage
+            localStorage.setItem('openai-api-key', newApiKey);
+            apiKey = newApiKey;
+
+            logToConsole('API key saved', 'success');
+        }
+
         // Event Listeners
         startBtn.addEventListener('click', startTranscription);
         stopBtn.addEventListener('click', stopTranscription);
@@ -310,6 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearDebugBtn.addEventListener('click', clearDebugConsole);
         toggleSettingsBtn.addEventListener('click', toggleSettings);
         themeToggleBtn.addEventListener('click', toggleTheme);
+        saveApiKeyBtn.addEventListener('click', saveApiKey);
 
         // Check theme preference on load
         checkThemePreference();

@@ -76,9 +76,20 @@ def handle_connect_livestream(data):
     global active_transcription, transcription_thread, stop_transcription_flag
 
     url = data.get("url", "")
+    custom_api_key = data.get("apiKey", "")
+
     log_message = f"Received URL: {url}"
     logger.info(log_message)
     socketio.emit("debug_log", {"message": log_message})
+
+    # Set custom API key if provided
+    if custom_api_key:
+        log_message = "Using custom API key from frontend"
+        logger.info(log_message)
+        socketio.emit("debug_log", {"message": log_message})
+
+        # Store the custom API key for later use
+        os.environ["TEMP_OPENAI_API_KEY"] = custom_api_key
 
     # Validate URL (simple check)
     if "youtube.com" not in url and "youtu.be" not in url:
@@ -264,6 +275,11 @@ def transcribe_livestream(url):
         active_transcription = False
         topic_detection.stop_topic_detection()  # Stop the topic detection thread
         major_topic_detection.stop_major_topic_detection()  # Stop the major topic detection thread
+
+        # Remove temporary API key if it was set
+        if "TEMP_OPENAI_API_KEY" in os.environ:
+            del os.environ["TEMP_OPENAI_API_KEY"]
+            logger.info("Removed temporary API key")
 
 
 if __name__ == "__main__":

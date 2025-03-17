@@ -12,7 +12,10 @@
 <body>
     <div class="container">
         <header>
-            <div class="title">YouTube Livestream Transcriber</div>
+            <div class="title">
+                <img src="LOGO.jpg" alt="Banter Logo" class="logo-img">
+                Banter Topic Detector
+            </div>
             <div class="status-bar">
                 <div class="status-items-group">
                     <div class="status-item">
@@ -61,7 +64,13 @@
                         <button id="toggle-settings" class="toggle-btn">Show Settings</button>
                     </div>
                     <div id="settings-content" class="hidden">
-                        <!-- Settings content will go here -->
+                        <!-- API Key Settings -->
+                        <div class="form-group">
+                            <label for="openai-api-key">OpenAI API Key</label>
+                            <input type="password" id="openai-api-key" placeholder="Enter your OpenAI API key">
+                            <p class="form-help">Your API key will be stored securely in your browser</p>
+                        </div>
+                        <button id="save-api-key" class="primary-btn"><i class="fas fa-save"></i> Save API Key</button>
                     </div>
                 </section>
 

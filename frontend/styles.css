@@ -66,6 +66,15 @@ header {
     font-size: 1.5rem;
     font-weight: bold;
     color: var(--primary-color);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.logo-img {
+    height: 40px;
+    width: auto;
+    border-radius: 4px;
 }
 
 .status-bar {
@@ -326,6 +335,13 @@ input[type="text"] {
 
 #settings-content {
     padding: 20px;
+}
+
+.form-help {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    margin-top: 5px;
+    font-style: italic;
 }
 
 /* Live Transcription */

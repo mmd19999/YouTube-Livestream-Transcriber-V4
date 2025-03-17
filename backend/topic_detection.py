@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables and set up OpenAI API key
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# First check if a temporary API key is set, otherwise use the one from .env
+openai.api_key = os.environ.get("TEMP_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
 
 # Global variables
 topic_queue = queue.Queue()
