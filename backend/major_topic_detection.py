@@ -188,25 +188,25 @@ def detect_major_topic(current_batch_text, previous_topic):
     # Prepare the prompt for the LLM
     if previous_topic is None:
         # First 5-minute batch - determine the initial major topic
-        prompt = f"""You are analyzing a 5-minute segment of transcription from a YouTube livestream.
+        prompt = f"""You are analyzing a 5-minute segment of transcription from a crypto YouTube livestream.
         
 Transcription: "{current_batch_text}"
 
-Identify a broad, general topic that covers this entire 5-minute segment.
-Return your response in this exact format - just the topic name, no explanations:
-[Major Topic: <brief topic name>]"""
+Generate a concise, engaging title that captures the major topic in a creative style.
+Return your response in this exact format:
+[Major Topic: <title>]"""
 
     else:
         # Subsequent batch - consider previous major topic for context
-        prompt = f"""You are analyzing a 5-minute segment of transcription from a YouTube livestream.
+        prompt = f"""You are analyzing a 5-minute segment of transcription from a crypto YouTube livestream.
 
-Previous 5-minute segment had this major topic: "{previous_topic}"
+Previous 5-minute segment had this title: "{previous_topic}"
 
 Current 5-minute transcription: "{current_batch_text}"
 
-Identify a broad, general topic that covers this new 5-minute segment, considering how it evolved from the previous topic.
-Return your response in this exact format - just the topic name, no explanations:
-[Major Topic: <brief topic name>]"""
+Generate a new concise, engaging title that captures the major topic, considering how the content has evolved from the previous segment.
+Return your response in this exact format:
+[Major Topic: <title>]"""
 
     # Call OpenAI API
     response = openai.ChatCompletion.create(
@@ -214,11 +214,42 @@ Return your response in this exact format - just the topic name, no explanations
         messages=[
             {
                 "role": "system",
-                "content": "You identify broad topics covering 5-minute segments of content. Be concise.",
+                "content": """You are an advanced title generator for a crypto YouTube livestream transcriber. Your task is to analyze a 5‑minute transcription segment and craft a concise, engaging title that captures its major topic in a creative and varied style. 
+
+Guidelines:
+• Base your title on the content's main focus, using your own phrasing. 
+• Draw inspiration from our channel's crypto style, but do not replicate a fixed format or return the exact same topic repeatedly.
+• Your title should be informative yet dynamic—feel free to vary structure, tone, and word choice.
+• Optionally include a starting timestamp if available, but it is not required for every title.
+• Do not provide any extra commentary—return only the title.
+
+For inspiration, here are some examples: 
+– Leverage Trading Crypto - Leverage Liquidations
+– Margin Modes Explained - Cross Margin vs Isolated Margin
+– When To Use Cross & Isolated Margins? - Leverage Trading
+– The Reason People Get Liquidated Trading Crypto
+– Live Crypto Trading - Example
+– Crypto Bear Market Sentiment - Intro
+– Managing Emotions when Trading Crypto
+– Bitcoin Analysis - BTC Bear Market Phase?
+– Is The Crypto Market Oversold? - Bitcoin RSI
+– Altcoins Next Move - Crypto Total Market Cap Analysis
+– Bitcoin Dominance Analysis - BTC.D
+– USDT Dominance Analysis - USDT.D
+– The Journey to Becoming a Successful Crypto Trader - Sniper School
+– When In Doubt Zoom Out - Intro
+– Crypto Market Update - Wen Altseason
+– Bitcoin Analysis - BTC Levels To Watch, Flush Out
+– Where Are We In This Cycle? - USDT.D, BTC.D, TOTAL3
+– Altcoin Bounce Imminent? - ETH, SOL, ADA, LINK, DOGE, S / FTM, SUI, XRP, TON, NEAR
+– Crypto News Today - CME Gaps, Crypto Fundamentals
+– Learn To Trade While Crypto Is Quiet - Sniper Club
+
+Always return just the title in this format: [Major Topic: <title>]""",
             },
             {"role": "user", "content": prompt},
         ],
-        max_tokens=50,
+        max_tokens=100,
     )
 
     topic_text = response.choices[0].message.content.strip()

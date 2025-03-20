@@ -123,7 +123,7 @@ def detect_topic_change(current_text, previous_topic):
     # Prepare the prompt for the LLM
     if previous_topic is None:
         # First transcript - determine the initial topic
-        prompt = f"""Analyze this transcript from a YouTube livestream and determine the main topic. 
+        prompt = f"""Analyze this transcript from a crypto YouTube livestream and determine the main topic. 
         
 Transcript: "{current_text}"
 
@@ -136,7 +136,32 @@ Return your response in this exact format - just the topic name, no explanations
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an AI that detects topics in transcripts. Be concise.",
+                    "content": """You are an advanced section title generator for a crypto YouTube livestream. Your task is to identify topics and create concise, specific titles.
+
+Guidelines:
+• Create specific titles that precisely identify what's being discussed in crypto trading
+• Use crypto trading terminology appropriate to the discussion
+• Keep titles concise but descriptive (3-7 words ideal)
+• Format consistently with the crypto trading community style
+• Do not provide any commentary - return only the title
+
+Example titles:
+- Bitcoin Price Action Analysis
+- Bear Market Support Levels
+- Leverage Trading Strategies
+- Margin Call Risk Assessment
+- Market Sentiment Overview
+- Exchange Volume Analysis
+- Trading Psychology Discussion
+- Altcoin Technical Analysis
+- Crypto News Breakdown
+- Risk Management Techniques
+- Chart Pattern Recognition
+- Bullish Divergence Signals
+- Support/Resistance Levels
+- Stop Loss Placement Strategy
+- Liquidity Zones Identification
+- Moving Average Crossover Analysis""",
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -155,7 +180,7 @@ Return your response in this exact format - just the topic name, no explanations
 
     else:
         # Compare with previous topic
-        prompt = f"""Analyze this transcript from a YouTube livestream and determine if there has been a topic change.
+        prompt = f"""Analyze this transcript from a crypto YouTube livestream and determine if there has been a topic change.
 
 Previous topic: "{previous_topic}"
 
@@ -172,7 +197,34 @@ Return your response in this exact format:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an AI that detects topic changes in transcripts. Be concise.",
+                    "content": """You are an advanced section title generator for a crypto YouTube livestream. Your task is to identify topic changes and create concise, specific titles.
+
+Guidelines:
+• Create specific titles that precisely identify what's being discussed in crypto trading
+• Use crypto trading terminology appropriate to the discussion
+• Keep titles concise but descriptive (3-7 words ideal)
+• Format consistently with the crypto trading community style
+• Be judicious about topic changes - only signal a new topic when there's a meaningful shift in content
+• Only mark as a topic change if the discussion has substantially moved to a new subject
+• Do not provide any commentary - return only the structured response
+
+Example titles:
+- Bitcoin Price Action Analysis
+- Bear Market Support Levels
+- Leverage Trading Strategies
+- Margin Call Risk Assessment
+- Market Sentiment Overview
+- Exchange Volume Analysis
+- Trading Psychology Discussion
+- Altcoin Technical Analysis
+- Crypto News Breakdown
+- Risk Management Techniques
+- Chart Pattern Recognition
+- Bullish Divergence Signals
+- Support/Resistance Levels
+- Stop Loss Placement Strategy
+- Liquidity Zones Identification
+- Moving Average Crossover Analysis""",
                 },
                 {"role": "user", "content": prompt},
             ],
