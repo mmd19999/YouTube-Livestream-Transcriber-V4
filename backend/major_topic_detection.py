@@ -1,13 +1,12 @@
 """
 Major topic detection module for YouTube Livestream Transcriber.
-Analyzes transcription chunks in 5-minute intervals to detect broader topics.
-Runs alongside the existing fine-grained topic detection.
+Analyzes transcription chunks to detect significant topic changes for YouTube content.
+Generates detailed, YouTube-optimized section titles with keywords.
 """
 
 import os
 import logging
 import threading
-import time
 import queue
 import openai
 from dotenv import load_dotenv
@@ -27,20 +26,28 @@ current_major_topic = None
 previous_major_topic = None
 stop_detection_flag = False
 detection_thread = None
-batch_start_time = None
-current_batch_transcriptions = []
-
-# Constants
-BATCH_INTERVAL_SECONDS = 300  # 5 minutes
+topic_start_timestamp = None
+content_buffer = []  # Store recent transcriptions to analyze for topic changes
+content_buffer_max_size = (
+    15  # Increased to capture more context for better topic detection
+)
+last_topic_change_timestamp = None
+min_topic_duration_chunks = 2  # Reduced to allow more responsive topic changes
+socketio_instance = None  # Store socketio instance for use when stopping
 
 
 def start_major_topic_detection(socketio):
     """Start the major topic detection thread"""
-    global detection_thread, stop_detection_flag, batch_start_time, current_batch_transcriptions
+    global detection_thread, stop_detection_flag, current_major_topic, previous_major_topic
+    global topic_start_timestamp, content_buffer, last_topic_change_timestamp, socketio_instance
 
     stop_detection_flag = False
-    batch_start_time = time.time()
-    current_batch_transcriptions = []
+    current_major_topic = None
+    previous_major_topic = None
+    topic_start_timestamp = None
+    content_buffer = []
+    last_topic_change_timestamp = None
+    socketio_instance = socketio  # Store for later use
 
     detection_thread = threading.Thread(
         target=major_topic_detection_worker, args=(socketio,)
@@ -52,7 +59,35 @@ def start_major_topic_detection(socketio):
 
 def stop_major_topic_detection():
     """Stop the major topic detection thread"""
-    global stop_detection_flag
+    global stop_detection_flag, current_major_topic, topic_start_timestamp, content_buffer, socketio_instance
+
+    # Before stopping, emit the final topic if we have one
+    if (
+        socketio_instance
+        and current_major_topic
+        and topic_start_timestamp
+        and content_buffer
+    ):
+        try:
+            # Get the last timestamp from the buffer
+            last_timestamp = content_buffer[-1]["timestamp"]
+            interval = f"{topic_start_timestamp}-{last_timestamp}"
+
+            # Log and emit the completed topic
+            log_message = (
+                f"Final major topic completed: {current_major_topic} ({interval})"
+            )
+            logger.info(log_message)
+
+            socketio_instance.emit(
+                "debug_log", {"message": log_message, "type": "success"}
+            )
+            socketio_instance.emit(
+                "major_topic_change",
+                {"interval": interval, "topic": current_major_topic},
+            )
+        except Exception as e:
+            logger.error(f"Error emitting final topic: {str(e)}")
 
     stop_detection_flag = True
     logger.info("Major topic detection thread stopping")
@@ -61,120 +96,121 @@ def stop_major_topic_detection():
 def add_transcription_for_major_analysis(timestamp, text):
     """Add a transcription chunk to the major topic analysis queue"""
     global major_topic_queue
-
     major_topic_queue.put({"timestamp": timestamp, "text": text})
     logger.debug(f"Added transcription to major topic detection queue at {timestamp}")
 
 
-def format_interval_timestamp(start_seconds, end_seconds):
-    """Format a time interval as HH:MM:SS-HH:MM:SS"""
-    start_hours, remainder = divmod(int(start_seconds), 3600)
-    start_minutes, start_seconds = divmod(remainder, 60)
-
-    end_hours, remainder = divmod(int(end_seconds), 3600)
-    end_minutes, end_seconds = divmod(remainder, 60)
-
-    return f"{start_hours:02d}:{start_minutes:02d}:{start_seconds:02d}-{end_hours:02d}:{end_minutes:02d}:{end_seconds:02d}"
-
-
 def major_topic_detection_worker(socketio):
-    """Worker thread that processes transcriptions in 5-minute batches and detects major topics"""
+    """Worker thread that processes transcriptions and detects major topic changes"""
     global major_topic_queue, current_major_topic, previous_major_topic, stop_detection_flag
-    global batch_start_time, current_batch_transcriptions
-
-    batch_end_time = batch_start_time + BATCH_INTERVAL_SECONDS
+    global topic_start_timestamp, content_buffer, last_topic_change_timestamp
 
     while not stop_detection_flag:
         try:
-            # Check if it's time to process the current batch
-            current_time = time.time()
-
-            if current_time >= batch_end_time:
-                # Time to process the batch
-                process_current_batch(socketio, batch_start_time, batch_end_time)
-
-                # Set up for next batch
-                previous_major_topic = current_major_topic
-                batch_start_time = batch_end_time
-                batch_end_time = batch_start_time + BATCH_INTERVAL_SECONDS
-                current_batch_transcriptions = []
-
             # Get transcription from queue with timeout to allow checking stop flag
             try:
                 transcription = major_topic_queue.get(timeout=1.0)
-                current_batch_transcriptions.append(transcription)
-                logger.debug(
-                    f"Added transcription to current batch: {transcription['timestamp']}"
-                )
             except queue.Empty:
                 # No new transcriptions, just continue
                 continue
+
+            timestamp = transcription["timestamp"]
+            text = transcription["text"]
+
+            # Process the new transcription
+            process_transcription(socketio, timestamp, text)
 
         except Exception as e:
             error_message = f"Error in major topic detection worker: {str(e)}"
             logger.error(error_message)
             socketio.emit("debug_log", {"message": error_message, "type": "error"})
-            time.sleep(1)  # Avoid tight loop in case of persistent errors
 
 
-def process_current_batch(socketio, start_time, end_time):
-    """Process the current batch of transcriptions to generate a major topic"""
-    global current_batch_transcriptions, current_major_topic, previous_major_topic
+def process_transcription(socketio, timestamp, text):
+    """Process a single transcription chunk for major topic detection"""
+    global current_major_topic, previous_major_topic, topic_start_timestamp
+    global content_buffer, last_topic_change_timestamp
 
-    if not current_batch_transcriptions:
-        logger.info("No transcriptions in current batch to process")
+    # Add to content buffer
+    content_buffer.append({"timestamp": timestamp, "text": text})
+
+    # Maintain buffer size
+    if len(content_buffer) > content_buffer_max_size:
+        content_buffer.pop(0)
+
+    # Skip if buffer is too small
+    if len(content_buffer) < 2:
         return
 
-    # Combine all transcriptions into a single text
-    combined_text = " ".join([item["text"] for item in current_batch_transcriptions])
+    # Combine recent transcriptions for analysis
+    combined_text = " ".join([item["text"] for item in content_buffer])
 
-    if not combined_text.strip():
-        logger.info("Empty combined text, skipping major topic detection")
-        return
+    # Skip if we just had a topic change (enforce minimum topic duration)
+    chunks_since_last_change = 0
+    if last_topic_change_timestamp:
+        for item in content_buffer:
+            if item["timestamp"] > last_topic_change_timestamp:
+                chunks_since_last_change += 1
 
-    # Create time interval string - use elapsed seconds from batch start and end
-    elapsed_start = 0  # First batch starts at 0
-    elapsed_end = int(end_time - start_time)
-
-    # If we have timestamps from transcriptions, use them instead
-    if current_batch_transcriptions:
-        # Try to get the first and last timestamps for more accurate representation
-        try:
-            # Some transcripts might be missing timestamps, so use the ones that have them
-            timestamps = [
-                t["timestamp"] for t in current_batch_transcriptions if "timestamp" in t
-            ]
-            if timestamps:
-                interval = f"{timestamps[0]}-{timestamps[-1]}"
-            else:
-                interval = format_interval_timestamp(elapsed_start, elapsed_end)
-        except Exception:
-            # Fall back to calculated timestamps if anything goes wrong
-            interval = format_interval_timestamp(elapsed_start, elapsed_end)
-    else:
-        interval = format_interval_timestamp(elapsed_start, elapsed_end)
+        if chunks_since_last_change < min_topic_duration_chunks:
+            logger.debug(
+                f"Skipping topic analysis (minimum duration not met): {chunks_since_last_change} chunks since last change"
+            )
+            return
 
     # Log analysis start
-    log_message = f"Analyzing 5-minute batch for major topic detection ({interval})"
+    log_message = f"Analyzing for major topic change at {timestamp}"
     logger.info(log_message)
     socketio.emit("debug_log", {"message": log_message})
 
     try:
-        # Detect the major topic
-        major_topic = detect_major_topic(combined_text, previous_major_topic)
-
-        # Update current major topic
-        current_major_topic = major_topic
-
-        # Log the new major topic
-        log_message = f"Major topic detected: {major_topic} for interval {interval}"
-        logger.info(log_message)
-        socketio.emit("debug_log", {"message": log_message, "type": "success"})
-
-        # Send major topic change to frontend
-        socketio.emit(
-            "major_topic_change", {"interval": interval, "topic": major_topic}
+        # Detect if there's a topic change
+        new_topic, is_topic_change, confidence = detect_major_topic_change(
+            combined_text, current_major_topic
         )
+
+        if current_major_topic is None:
+            # This is the first topic - store it, don't emit yet
+            current_major_topic = new_topic
+            topic_start_timestamp = timestamp
+            last_topic_change_timestamp = timestamp
+
+            # Log detection
+            log_message = f"Initial major topic detected: {new_topic}"
+            logger.info(log_message)
+            socketio.emit("debug_log", {"message": log_message, "type": "success"})
+
+        elif (
+            is_topic_change and confidence >= 0.65
+        ):  # Lower threshold to catch more meaningful transitions
+            # Topic has changed - now we can emit the previous topic
+            interval = f"{topic_start_timestamp}-{timestamp}"
+
+            # Log and emit the completed topic
+            log_message = f"Major topic completed: {current_major_topic} ({interval})"
+            logger.info(log_message)
+            socketio.emit("debug_log", {"message": log_message, "type": "success"})
+            socketio.emit(
+                "major_topic_change",
+                {"interval": interval, "topic": current_major_topic},
+            )
+
+            # Update to the new topic
+            previous_major_topic = current_major_topic
+            current_major_topic = new_topic
+            topic_start_timestamp = timestamp
+            last_topic_change_timestamp = timestamp
+
+            # Log topic change
+            log_message = f"New major topic detected: {new_topic}"
+            logger.info(log_message)
+            socketio.emit("debug_log", {"message": log_message, "type": "success"})
+        else:
+            # No topic change
+            log_message = (
+                f"No major topic change detected (confidence: {confidence:.2f})"
+            )
+            logger.debug(log_message)
 
     except Exception as e:
         error_message = f"Major topic detection failed: {str(e)}"
@@ -182,82 +218,171 @@ def process_current_batch(socketio, start_time, end_time):
         socketio.emit("debug_log", {"message": error_message, "type": "error"})
 
 
-def detect_major_topic(current_batch_text, previous_topic):
-    """Use GPT-4o mini to detect major topics for 5-minute intervals"""
+def detect_major_topic_change(current_text, previous_topic):
+    """Use GPT-4o mini to detect significant topic changes and generate detailed topics"""
 
-    # Prepare the prompt for the LLM
+    # First topic case
     if previous_topic is None:
-        # First 5-minute batch - determine the initial major topic
-        prompt = f"""You are analyzing a 5-minute segment of transcription from a crypto YouTube livestream.
+        # For the first topic, we just determine what it is
+        prompt = f"""You are analyzing a segment of transcription from a crypto YouTube livestream.
         
-Transcription: "{current_batch_text}"
+Transcription: "{current_text}"
 
-Generate a concise, engaging title that captures the major topic in a creative style.
+Generate a detailed, engaging YouTube-style chapter title that captures the major topic being discussed.
+Include specific crypto assets, technical indicators, or market conditions mentioned in the discussion.
+Your title should follow the format "Main Topic - Specific Detail" and be concise yet specific.
+
 Return your response in this exact format:
-[Major Topic: <title>]"""
+[Major Topic: <detailed title>]"""
 
-    else:
-        # Subsequent batch - consider previous major topic for context
-        prompt = f"""You are analyzing a 5-minute segment of transcription from a crypto YouTube livestream.
-
-Previous 5-minute segment had this title: "{previous_topic}"
-
-Current 5-minute transcription: "{current_batch_text}"
-
-Generate a new concise, engaging title that captures the major topic, considering how the content has evolved from the previous segment.
-Return your response in this exact format:
-[Major Topic: <title>]"""
-
-    # Call OpenAI API
-    response = openai.ChatCompletion.create(
-        model="gpt-4o-mini-2024-07-18",
-        messages=[
-            {
-                "role": "system",
-                "content": """You are an advanced title generator for a crypto YouTube livestream transcriber. Your task is to analyze a 5‑minute transcription segment and craft a concise, engaging title that captures its major topic in a creative and varied style. 
+        # Call OpenAI API
+        response = openai.ChatCompletion.create(
+            model="gpt-4o-mini-2024-07-18",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """You are an expert crypto content creator specializing in YouTube chapter markers for cryptocurrency livestreams. Your task is to analyze livestream transcriptions and create perfect YouTube chapter titles.
 
 Guidelines:
-• Base your title on the content's main focus, using your own phrasing. 
-• Draw inspiration from our channel's crypto style, but do not replicate a fixed format or return the exact same topic repeatedly.
-• Your title should be informative yet dynamic—feel free to vary structure, tone, and word choice.
-• Optionally include a starting timestamp if available, but it is not required for every title.
-• Do not provide any extra commentary—return only the title.
+• Create titles that follow the format "Main Topic - Specific Detail" (e.g., "Bitcoin Analysis - Bull Flag Formation")
+• Always include specific cryptocurrency assets by ticker (BTC, ETH, SOL, ADA, DOGE, etc.) when relevant
+• Include technical indicators, chart patterns, or news events (RSI, FOMC, Breakout, Support Levels, etc.)
+• Keep titles concise yet specific (3-10 words is ideal)
+• Use crypto-specific terminology appropriate for traders (Short Squeeze, Liquidation, Accumulation, etc.)
+• When appropriate, use a question format to create engagement ("Is Bitcoin Ready to Pump?")
+• Capture exactly what's being discussed - focus on the main point, not tangential details
 
-For inspiration, here are some examples: 
-– Leverage Trading Crypto - Leverage Liquidations
-– Margin Modes Explained - Cross Margin vs Isolated Margin
-– When To Use Cross & Isolated Margins? - Leverage Trading
-– The Reason People Get Liquidated Trading Crypto
-– Live Crypto Trading - Example
-– Crypto Bear Market Sentiment - Intro
-– Managing Emotions when Trading Crypto
-– Bitcoin Analysis - BTC Bear Market Phase?
-– Is The Crypto Market Oversold? - Bitcoin RSI
-– Altcoins Next Move - Crypto Total Market Cap Analysis
-– Bitcoin Dominance Analysis - BTC.D
-– USDT Dominance Analysis - USDT.D
-– The Journey to Becoming a Successful Crypto Trader - Sniper School
-– When In Doubt Zoom Out - Intro
-– Crypto Market Update - Wen Altseason
-– Bitcoin Analysis - BTC Levels To Watch, Flush Out
-– Where Are We In This Cycle? - USDT.D, BTC.D, TOTAL3
-– Altcoin Bounce Imminent? - ETH, SOL, ADA, LINK, DOGE, S / FTM, SUI, XRP, TON, NEAR
-– Crypto News Today - CME Gaps, Crypto Fundamentals
-– Learn To Trade While Crypto Is Quiet - Sniper Club
+Examples directly from successful crypto videos:
+- "Bitcoin Analysis - Hope Stage"
+- "Crypto Total Market Cap Analysis - RSI Flatline"
+- "Altcoins Parabolic Moves Incoming"
+- "Bitcoin Scenarios - BTC"
+- "Crypto Pullback Post Bybit Hack - Intro"
+- "High Liquidation Event"
+- "Will Arweave Explode This Year?"
+- "Bitcoin Short Squeeze Imminent - BTC Analysis"
+- "CPI Forecast Today - Good For Crypto?"
+- "Eric Trump Crypto KOL? - BTC Tweet"
 
-Always return just the title in this format: [Major Topic: <title>]""",
-            },
-            {"role": "user", "content": prompt},
-        ],
-        max_tokens=100,
-    )
+Always return just the title in this format: [Major Topic: <detailed title>]""",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=100,
+        )
 
-    topic_text = response.choices[0].message.content.strip()
+        topic_text = response.choices[0].message.content.strip()
 
-    # Extract topic from response format [Major Topic: <topic>]
-    if "[Major Topic:" in topic_text and "]" in topic_text:
-        topic = topic_text.split("[Major Topic:")[1].split("]")[0].strip()
+        # Extract topic from response format [Major Topic: <topic>]
+        if "[Major Topic:" in topic_text and "]" in topic_text:
+            topic = topic_text.split("[Major Topic:")[1].split("]")[0].strip()
+        else:
+            topic = topic_text
+
+        return topic, True, 1.0  # For first topic, always return high confidence
+
     else:
-        topic = topic_text
+        # For subsequent chunks, determine if there's a significant topic change
+        prompt = f"""You are analyzing a segment of transcription from a crypto YouTube livestream.
 
-    return topic
+Current major topic: "{previous_topic}"
+
+New transcription segment: "{current_text}"
+
+Your task is to:
+1) Determine if this represents a SIGNIFICANT shift to a new topic deserving of a YouTube chapter marker
+2) If yes, create a concise, specific title for this new chapter
+3) Provide a confidence score (0.0-1.0) on how certain you are that this is a major topic change
+
+Consider:
+- A YouTube chapter-worthy change means the conversation has moved to a distinctly different subject
+- Major topic changes often include explicit transitions or shifts to new crypto assets/concepts
+- The new title should follow the format "Main Topic - Specific Detail" and be 3-10 words
+- Include crypto assets by ticker (BTC, ETH, SOL, etc.) and relevant indicators/events when mentioned
+
+Return your response in this exact format:
+[Topic Change: Yes/No]
+[Confidence: 0.0-1.0]
+[New Major Topic: <detailed title>]"""
+
+        # Call OpenAI API
+        response = openai.ChatCompletion.create(
+            model="gpt-4o-mini-2024-07-18",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """You are an expert crypto content creator specializing in YouTube chapter markers. Your job is to detect significant topic changes in crypto livestreams and create perfect chapter titles.
+
+Guidelines for topic change detection:
+• Be selective - only mark MAJOR shifts in conversation (from one distinct subject to another)
+• New chapter markers typically appear every 2-5 minutes in good crypto content
+• Look for explicit transitions like "now let's look at..." or "moving on to..."
+• A shift from one cryptocurrency to another often indicates a chapter-worthy change
+• A shift from market analysis to news discussion is typically a chapter-worthy change
+• Changing from general market overview to specific asset analysis is usually a chapter change
+
+Confidence scoring:
+• 0.9-1.0: Definite major topic change (explicit transition, completely new subject)
+• 0.75-0.89: Strong topic change (clear shift to new crypto asset or concept)
+• 0.5-0.74: Moderate topic change (related but distinct subject)
+• 0.0-0.49: Minor variation or continuation of same general topic (not chapter-worthy)
+
+Title creation guidelines:
+• Create titles that follow the format "Main Topic - Specific Detail" 
+• Always include specific crypto assets (BTC, ETH, SOL, ADA, DOGE, etc.) when relevant
+• Include technical indicators or news events (RSI, FOMC, Breakout, Support Levels)
+• Keep titles concise yet specific (3-10 words is ideal)
+• Use crypto-specific terminology (Short Squeeze, Liquidation, Accumulation, etc.)
+• Question formats can create engagement ("Is Bitcoin Ready to Pump?")
+
+Examples directly from successful crypto videos:
+- "Bitcoin Analysis - Hope Stage"
+- "Altcoins Parabolic Moves Incoming"
+- "What Stage is Crypto in Today? - Crypto Emotions"
+- "Bitcoin Relief Rally? - Crypto Market Update"
+- "News Following to Jerome Powell FOMC Meeting"
+- "Crypto Total Market Cap Analysis - TOTAL"
+- "What Do Trumps Tariffs Mean For Crypto?"
+- "FOMC Meeting Today - Intro"
+- "How To Trade Crypto When The Market Turns?"
+- "Bitcoin Short Squeeze Imminent - BTC Analysis"
+
+Return your response in this exact format without additional commentary:
+[Topic Change: Yes/No]
+[Confidence: 0.0-1.0]
+[New Major Topic: <detailed title>]""",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=150,
+        )
+
+        response_text = response.choices[0].message.content.strip()
+
+        # Parse the response
+        is_topic_change = False
+        confidence = 0.0
+        new_topic = previous_topic  # Default to keeping the same topic
+
+        if "[Topic Change:" in response_text:
+            change_part = response_text.split("[Topic Change:")[1].split("]")[0].strip()
+            is_topic_change = change_part.lower() == "yes"
+
+        if "[Confidence:" in response_text:
+            confidence_part = (
+                response_text.split("[Confidence:")[1].split("]")[0].strip()
+            )
+            try:
+                confidence = float(confidence_part)
+            except ValueError:
+                # If we can't parse confidence, default to 0.5
+                confidence = 0.5
+
+        if "[New Major Topic:" in response_text:
+            new_topic_part = (
+                response_text.split("[New Major Topic:")[1].split("]")[0].strip()
+            )
+            if new_topic_part.strip():  # Only update if we got a non-empty topic
+                new_topic = new_topic_part
+
+        return new_topic, is_topic_change, confidence
