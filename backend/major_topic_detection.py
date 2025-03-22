@@ -247,7 +247,7 @@ Guidelines:
 • Create titles that follow the format "Main Topic - Specific Detail" (e.g., "Bitcoin Analysis - Bull Flag Formation")
 • Always include specific cryptocurrency assets by ticker (BTC, ETH, SOL, ADA, DOGE, etc.) when relevant
 • Include technical indicators, chart patterns, or news events (RSI, FOMC, Breakout, Support Levels, etc.)
-• Keep titles concise yet specific (3-10 words is ideal)
+• Keep titles concise yet specific (5-15 words is ideal)
 • Use crypto-specific terminology appropriate for traders (Short Squeeze, Liquidation, Accumulation, etc.)
 • When appropriate, use a question format to create engagement ("Is Bitcoin Ready to Pump?")
 • Capture exactly what's being discussed - focus on the main point, not tangential details
@@ -331,7 +331,7 @@ Title creation guidelines:
 • Create titles that follow the format "Main Topic - Specific Detail" 
 • Always include specific crypto assets (BTC, ETH, SOL, ADA, DOGE, etc.) when relevant
 • Include technical indicators or news events (RSI, FOMC, Breakout, Support Levels)
-• Keep titles concise yet specific (3-10 words is ideal)
+• Keep titles concise yet specific (5-15 words is ideal)
 • Use crypto-specific terminology (Short Squeeze, Liquidation, Accumulation, etc.)
 • Question formats can create engagement ("Is Bitcoin Ready to Pump?")
 
