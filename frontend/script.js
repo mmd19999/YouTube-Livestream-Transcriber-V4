@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearBtn = document.getElementById('clear-btn');
     const themeToggleBtn = document.getElementById('theme-toggle-btn');
     const statsToggleBtn = document.getElementById('stats-toggle-btn');
+    const copyAllFineTopicsBtn = document.getElementById('copy-all-fine-topics');
+    const copyAllMajorTopicsBtn = document.getElementById('copy-all-major-topics');
 
     // State
     let isConnected = false;
@@ -188,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Clear no topics message if present
             const noTopics = topicWindow.querySelector('.no-topics');
             if (noTopics) {
-                topicWindow.innerHTML = '';
+                topicWindow.querySelector('.topics-list').innerHTML = '';
             }
 
             const entry = document.createElement('div');
@@ -196,9 +198,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Format the topic with better capitalization
             const formattedTopic = topic.charAt(0).toUpperCase() + topic.slice(1);
+            const topicText = `${timestamp} ${formattedTopic}`;
+
+            // Create copy button
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'topic-copy-btn';
+            copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+            copyBtn.title = 'Copy this topic';
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(topicText)
+                    .then(() => {
+                        logToConsole('Topic copied to clipboard', 'success');
+                    })
+                    .catch(err => {
+                        logToConsole(`Error copying to clipboard: ${err}`, 'error');
+                    });
+            });
 
             entry.innerHTML = `<span class="timestamp">${timestamp}</span> <strong>New Topic:</strong> ${formattedTopic}`;
-            topicWindow.appendChild(entry);
+            entry.appendChild(copyBtn);
+            topicWindow.querySelector('.topics-list').appendChild(entry);
             topicWindow.scrollTop = topicWindow.scrollHeight;
         }
 
@@ -207,7 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Clear no topics message if present
             const noTopics = majorTopicWindow.querySelector('.no-topics');
             if (noTopics) {
-                majorTopicWindow.innerHTML = '';
+                majorTopicWindow.querySelector('.topics-list').innerHTML = '';
             }
 
             const entry = document.createElement('div');
@@ -216,12 +235,95 @@ document.addEventListener('DOMContentLoaded', () => {
             // Format the topic with better capitalization
             const formattedTopic = topic.charAt(0).toUpperCase() + topic.slice(1);
 
+            // Extract start time for the copy format
+            const startTime = interval.split('-')[0].trim();
+            const topicText = `${startTime} ${formattedTopic}`;
+
+            // Create copy button
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'topic-copy-btn';
+            copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+            copyBtn.title = 'Copy this topic';
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(topicText)
+                    .then(() => {
+                        logToConsole('Major topic copied to clipboard', 'success');
+                    })
+                    .catch(err => {
+                        logToConsole(`Error copying to clipboard: ${err}`, 'error');
+                    });
+            });
+
             entry.innerHTML = `<span class="interval">${interval}</span> <strong>Major Topic:</strong> ${formattedTopic}`;
-            majorTopicWindow.appendChild(entry);
+            entry.appendChild(copyBtn);
+            majorTopicWindow.querySelector('.topics-list').appendChild(entry);
             majorTopicWindow.scrollTop = majorTopicWindow.scrollHeight;
 
             // Also log to debug console
             logToConsole(`Major topic detected: ${topic} for interval ${interval}`, 'success');
+        }
+
+        // Copy all fine-grained topics
+        function copyAllFineTopics() {
+            const topicEntries = topicWindow.querySelectorAll('.topic-change');
+            if (topicEntries.length === 0) {
+                logToConsole('No topics to copy', 'error');
+                return;
+            }
+
+            let allTopics = '';
+            topicEntries.forEach(entry => {
+                const timestamp = entry.querySelector('.timestamp').textContent;
+                // Extract only the topic text without the icon
+                const topicElement = entry.cloneNode(true);
+                // Remove the copy button before getting text content
+                const copyButton = topicElement.querySelector('.topic-copy-btn');
+                if (copyButton) {
+                    topicElement.removeChild(copyButton);
+                }
+                const topicText = topicElement.textContent.split('New Topic:')[1].trim();
+                allTopics += `${timestamp} ${topicText}\n`;
+            });
+
+            navigator.clipboard.writeText(allTopics)
+                .then(() => {
+                    logToConsole('All fine-grained topics copied to clipboard', 'success');
+                })
+                .catch(err => {
+                    logToConsole(`Error copying to clipboard: ${err}`, 'error');
+                });
+        }
+
+        // Copy all major topics
+        function copyAllMajorTopics() {
+            const topicEntries = majorTopicWindow.querySelectorAll('.major-topic-change');
+            if (topicEntries.length === 0) {
+                logToConsole('No major topics to copy', 'error');
+                return;
+            }
+
+            let allTopics = '';
+            topicEntries.forEach(entry => {
+                const interval = entry.querySelector('.interval').textContent;
+                const startTime = interval.split('-')[0].trim();
+                // Extract only the topic text without the icon
+                const topicElement = entry.cloneNode(true);
+                // Remove the copy button before getting text content
+                const copyButton = topicElement.querySelector('.topic-copy-btn');
+                if (copyButton) {
+                    topicElement.removeChild(copyButton);
+                }
+                const topicText = topicElement.textContent.split('Major Topic:')[1].trim();
+                allTopics += `${startTime} ${topicText}\n`;
+            });
+
+            navigator.clipboard.writeText(allTopics)
+                .then(() => {
+                    logToConsole('All major topics copied to clipboard', 'success');
+                })
+                .catch(err => {
+                    logToConsole(`Error copying to clipboard: ${err}`, 'error');
+                });
         }
 
         // Start transcription
@@ -337,6 +439,8 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleSettingsBtn.addEventListener('click', toggleSettings);
         themeToggleBtn.addEventListener('click', toggleTheme);
         saveApiKeyBtn.addEventListener('click', saveApiKey);
+        copyAllFineTopicsBtn.addEventListener('click', copyAllFineTopics);
+        copyAllMajorTopicsBtn.addEventListener('click', copyAllMajorTopics);
 
         // Check theme preference on load
         checkThemePreference();

@@ -431,6 +431,46 @@ input[type="text"] {
     display: block;
 }
 
+.topics-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+}
+
+.copy-all-btn {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 10px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.copy-all-btn:hover {
+    background-color: var(--primary-dark);
+}
+
+.topics-list {
+    margin-top: 10px;
+}
+
+.topic-copy-btn {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    margin-left: 5px;
+    font-size: 0.9rem;
+}
+
+.topic-copy-btn:hover {
+    color: var(--primary-color);
+}
+
 .topic-tabs {
     display: flex;
     background-color: var(--card-bg);
