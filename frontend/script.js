@@ -185,6 +185,25 @@ document.addEventListener('DOMContentLoaded', () => {
             logToConsole(`Transcription: ${timestamp} - ${text}`, 'success');
         }
 
+        // Format timestamp for copying
+        function formatTimestampForCopy(timestamp) {
+            // Timestamp is in format "00:00:00" (HH:MM:SS)
+            const parts = timestamp.split(':');
+
+            // Extract hours, minutes, seconds
+            const hours = parseInt(parts[0], 10);
+            const minutes = parseInt(parts[1], 10);
+            const seconds = parseInt(parts[2], 10);
+
+            // If hours is 0, return MM:SS format
+            if (hours === 0) {
+                return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+
+            // Otherwise return HH:MM:SS format
+            return timestamp;
+        }
+
         // Add topic change entry
         function addTopicChange(timestamp, topic) {
             // Clear no topics message if present
@@ -198,7 +217,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Format the topic with better capitalization
             const formattedTopic = topic.charAt(0).toUpperCase() + topic.slice(1);
-            const topicText = `${timestamp} ${formattedTopic}`;
+            const formattedTimestamp = formatTimestampForCopy(timestamp);
+            const topicText = `${formattedTimestamp} ${formattedTopic}`;
 
             // Create copy button
             const copyBtn = document.createElement('button');
@@ -237,7 +257,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Extract start time for the copy format
             const startTime = interval.split('-')[0].trim();
-            const topicText = `${startTime} ${formattedTopic}`;
+            const formattedTimestamp = formatTimestampForCopy(startTime);
+            const topicText = `${formattedTimestamp} ${formattedTopic}`;
 
             // Create copy button
             const copyBtn = document.createElement('button');
@@ -274,6 +295,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let allTopics = '';
             topicEntries.forEach(entry => {
                 const timestamp = entry.querySelector('.timestamp').textContent;
+                const formattedTimestamp = formatTimestampForCopy(timestamp);
+
                 // Extract only the topic text without the icon
                 const topicElement = entry.cloneNode(true);
                 // Remove the copy button before getting text content
@@ -282,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     topicElement.removeChild(copyButton);
                 }
                 const topicText = topicElement.textContent.split('New Topic:')[1].trim();
-                allTopics += `${timestamp} ${topicText}\n`;
+                allTopics += `${formattedTimestamp} ${topicText}\n`;
             });
 
             navigator.clipboard.writeText(allTopics)
@@ -306,6 +329,8 @@ document.addEventListener('DOMContentLoaded', () => {
             topicEntries.forEach(entry => {
                 const interval = entry.querySelector('.interval').textContent;
                 const startTime = interval.split('-')[0].trim();
+                const formattedTimestamp = formatTimestampForCopy(startTime);
+
                 // Extract only the topic text without the icon
                 const topicElement = entry.cloneNode(true);
                 // Remove the copy button before getting text content
@@ -314,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     topicElement.removeChild(copyButton);
                 }
                 const topicText = topicElement.textContent.split('Major Topic:')[1].trim();
-                allTopics += `${startTime} ${topicText}\n`;
+                allTopics += `${formattedTimestamp} ${topicText}\n`;
             });
 
             navigator.clipboard.writeText(allTopics)
